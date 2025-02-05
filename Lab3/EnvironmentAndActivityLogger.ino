@@ -92,7 +92,7 @@ void setupOLED() {
     u8x8.setFlipMode( 1 ); // set number from 1 to 3, the screen word will rotary 180
 }
 
-void showVoltageAndSystemStatus(char systemStatus[]) {
+void showVoltageAndSystemStatus() {
   delay(500);
   if(!SYSTEM_STATUS) {
     float batteryVoltage = readBattery();
