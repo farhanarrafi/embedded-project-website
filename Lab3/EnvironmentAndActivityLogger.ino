@@ -98,11 +98,11 @@ void showVoltageAndSystemStatus() {
     float batteryVoltage = readBattery();
     u8x8.setFont(u8x8_font_chroma48medium8_r); //try u8x8_font_px437wyse700a_2x2_r
     u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
-    u8x8.print("Batt voltage: " + char(batteryVoltage));
+    u8x8.print("V:" + char(batteryVoltage));
     u8x8.setCursor( 0 , 1); // (columns, row)
     u8x8.print("                    ");
     u8x8.setCursor( 0 , 2 );
-    u8x8.print("System status: OFF");
+    u8x8.print("Sys: OFF");
     u8x8.setCursor( 0 , 3 );
     u8x8.print("                    ");
   } else {
