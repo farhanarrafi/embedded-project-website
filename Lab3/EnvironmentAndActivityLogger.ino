@@ -67,16 +67,10 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  
+  showVoltageAndSystemStatus();
   runBluetooth();
-
-  if(!SYSTEM_STATUS) { // system is off show battery voltage and show "OFF"
-    delay(500); // Delay in between reads for stability
-    float batteryVoltage = readBattery();
-    showVoltageAndSystemStatus(batteryVoltage, "OFF");
-  } {
-
-  }
+  
+ 
 }
 
 float readBattery() {
@@ -98,16 +92,22 @@ void setupOLED() {
     u8x8.setFlipMode( 1 ); // set number from 1 to 3, the screen word will rotary 180
 }
 
-void showVoltageAndSystemStatus(float batteryVoltage, char systemStatus[]) {
-  u8x8.setFont(u8x8_font_chroma48medium8_r); //try u8x8_font_px437wyse700a_2x2_r
-  u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
-  u8x8.print("Batt voltage: " + char(batteryVoltage));
-  u8x8.setCursor( 0 , 1); // (columns, row)
-  u8x8.print("                    ");
-  u8x8.setCursor( 0 , 2 );
-  u8x8.print("System status: " + char(systemStatus));
-  u8x8.setCursor( 0 , 3 );
-  u8x8.print("                    ");
+void showVoltageAndSystemStatus(char systemStatus[]) {
+  delay(500);
+  if(!SYSTEM_STATUS) {
+    float batteryVoltage = readBattery();
+    u8x8.setFont(u8x8_font_chroma48medium8_r); //try u8x8_font_px437wyse700a_2x2_r
+    u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
+    u8x8.print("Batt voltage: " + char(batteryVoltage));
+    u8x8.setCursor( 0 , 1); // (columns, row)
+    u8x8.print("                    ");
+    u8x8.setCursor( 0 , 2 );
+    u8x8.print("System status: OFF");
+    u8x8.setCursor( 0 , 3 );
+    u8x8.print("                    ");
+  } else {
+
+  }
 }
 
 void setupClock() {
