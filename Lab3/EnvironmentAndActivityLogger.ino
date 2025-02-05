@@ -232,15 +232,45 @@ void setupSDCard() {
 }
 
 void writeDatainSDCard() {
-    // make a string for assembling the data to log:
-  String dataString = "";
+  // make a string for assembling the data to log:
+  dataFile.print("\nAccelerometer:\n");
+  dataFile.print(" X1 = ");
+  dataFile.println(myIMU.readFloatAccelX(), 4);
+  dataFile.print(" Y1 = ");
+  dataFile.println(myIMU.readFloatAccelY(), 4);
+  dataFile.print(" Z1 = ");
+  dataFile.println(myIMU.readFloatAccelZ(), 4);
 
-  dataString += "Accelerometer: " + " X1 = " + myIMU.readFloatAccelX()+ " Y1 = " + myIMU.readFloatAccelY() +  " Z1 = " + myIMU.readFloatAccelZ() + "\n";
-  dataString += "Gyroscope: " + " X1 = " + myIMU.readFloatGyroX()+ " Y1 = " + myIMU.readFloatGyroY() +  " Z1 = " + myIMU.readFloatGyroZ() + "\n";
-  dataString += "Thermometer: " + "  Degrees C1 = " + myIMU.readTempC()+ " Degrees F1 = " + myIMU.readTempF() + "\n";
+  //Gyroscope
+  dataFile.print("\nGyroscope:\n");
+  dataFile.print(" X1 = ");
+  dataFile.println(myIMU.readFloatGyroX(), 4);
+  dataFile.print(" Y1 = ");
+  dataFile.println(myIMU.readFloatGyroY(), 4);
+  dataFile.print(" Z1 = ");
+  dataFile.println(myIMU.readFloatGyroZ(), 4);
+
+  //Thermometer
+  dataFile.print("\nThermometer:\n");
+  dataFile.print(" Degrees C1 = ");
+  dataFile.println(myIMU.readTempC(), 4);
+  dataFile.print(" Degrees F1 = ");
+  dataFile.println(myIMU.readTempF(), 4);
 
   Time now = pcf.getTime();//get current time
-  dataString += now.day+ "/" +now.month + "/" + now.year + " " + now.hour + ":" + now.minute + ":" + now.second + "\n";
+  //print current time
+  dataFile.print(nowTime.day);
+  dataFile.print("/");
+  dataFile.print(nowTime.month);
+  dataFile.print("/");
+  dataFile.print(nowTime.year);
+  dataFile.print(" ");
+  dataFile.print(nowTime.hour);
+  dataFile.print(":");
+  dataFile.print(nowTime.minute);
+  dataFile.print(":");
+  dataFile.println(nowTime.second);
+
 
 
   // open the file. note that only one file can be open at a time,
