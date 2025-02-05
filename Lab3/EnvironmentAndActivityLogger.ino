@@ -54,7 +54,7 @@ void setup() {
   // Serial.begin(9600);
 
   // setup Bluetooth
-  setupBluetooth()
+  setupBluetooth();
   // setup sensors
   setupIMUAndMicrophone();
   // setup RTC
@@ -77,9 +77,6 @@ void loop() {
   } {
 
   }
-  
-
-  char timestamp[] = getTimeStamp(); 
 }
 
 float readBattery() {
@@ -104,11 +101,11 @@ void setupOLED() {
 void showVoltageAndSystemStatus(float batteryVoltage, char systemStatus[]) {
   u8x8.setFont(u8x8_font_chroma48medium8_r); //try u8x8_font_px437wyse700a_2x2_r
   u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
-  u8x8.print("Batt voltage: " + batteryVoltage);
+  u8x8.print("Batt voltage: " + char(batteryVoltage));
   u8x8.setCursor( 0 , 1); // (columns, row)
   u8x8.print("                    ");
   u8x8.setCursor( 0 , 2 );
-  u8x8.print("System status: " + systemStatus);
+  u8x8.print("System status: " + char(systemStatus));
   u8x8.setCursor( 0 , 3 );
   u8x8.print("                    ");
 }
@@ -123,9 +120,9 @@ void setupClock() {
 
   // Run only first time. Then comment out.
   // pcf.setYear(24);//set year
-  // pcf.setMonth(1);//set month
-  // pcf.setDay(21);//set dat
-  // pcf.setHour(20);//set hour
+  // pcf.setMonth(2);//set month
+  // pcf.setDay(4);//set date
+  // pcf.setHour(21);//set hour
   // pcf.setMinut(7);//set minut
   // pcf.setSecond(13);//set second
 
@@ -188,27 +185,22 @@ void runBluetooth() {
     if (ledCharacteristic.value()) {
       Serial.println("LED on");
       digitalWrite(ledPin, HIGH);
+      delay(1000);
       writeDatainSDCard();
-
-
     } else {
       Serial.println("LED off");
       digitalWrite(ledPin, LOW);
-
-
-
-
     }
   }
 }
 
 void setupIMUAndMicrophone() {
   //Call .begin() to configure the IMUs
-    if (myIMU.begin() != 0) {
-        Serial.println("Device error");
-    } else {
-        Serial.println("Device OK!");
-    }
+  if (myIMU.begin() != 0) {
+      Serial.println("Device error");
+  } else {
+      Serial.println("Device OK!");
+  }
 }
 
 void setupSDCard() {
@@ -233,56 +225,52 @@ void setupSDCard() {
 
 void writeDatainSDCard() {
   // make a string for assembling the data to log:
-  dataFile.print("\nAccelerometer:\n");
-  dataFile.print(" X1 = ");
-  dataFile.println(myIMU.readFloatAccelX(), 4);
-  dataFile.print(" Y1 = ");
-  dataFile.println(myIMU.readFloatAccelY(), 4);
-  dataFile.print(" Z1 = ");
-  dataFile.println(myIMU.readFloatAccelZ(), 4);
-
-  //Gyroscope
-  dataFile.print("\nGyroscope:\n");
-  dataFile.print(" X1 = ");
-  dataFile.println(myIMU.readFloatGyroX(), 4);
-  dataFile.print(" Y1 = ");
-  dataFile.println(myIMU.readFloatGyroY(), 4);
-  dataFile.print(" Z1 = ");
-  dataFile.println(myIMU.readFloatGyroZ(), 4);
-
-  //Thermometer
-  dataFile.print("\nThermometer:\n");
-  dataFile.print(" Degrees C1 = ");
-  dataFile.println(myIMU.readTempC(), 4);
-  dataFile.print(" Degrees F1 = ");
-  dataFile.println(myIMU.readTempF(), 4);
-
-  Time now = pcf.getTime();//get current time
-  //print current time
-  dataFile.print(nowTime.day);
-  dataFile.print("/");
-  dataFile.print(nowTime.month);
-  dataFile.print("/");
-  dataFile.print(nowTime.year);
-  dataFile.print(" ");
-  dataFile.print(nowTime.hour);
-  dataFile.print(":");
-  dataFile.print(nowTime.minute);
-  dataFile.print(":");
-  dataFile.println(nowTime.second);
-
-
-
+  
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
   File dataFile = SD.open("DataFile.txt", FILE_WRITE);
 
   // if the file is available, write to it:
   if (dataFile) {
-    dataFile.println(dataString);
+    dataFile.print("\nAccelerometer:\n");
+    dataFile.print(" X1 = ");
+    dataFile.println(myIMU.readFloatAccelX(), 4);
+    dataFile.print(" Y1 = ");
+    dataFile.println(myIMU.readFloatAccelY(), 4);
+    dataFile.print(" Z1 = ");
+    dataFile.println(myIMU.readFloatAccelZ(), 4);
+
+    //Gyroscope
+    dataFile.print("\nGyroscope:\n");
+    dataFile.print(" X1 = ");
+    dataFile.println(myIMU.readFloatGyroX(), 4);
+    dataFile.print(" Y1 = ");
+    dataFile.println(myIMU.readFloatGyroY(), 4);
+    dataFile.print(" Z1 = ");
+    dataFile.println(myIMU.readFloatGyroZ(), 4);
+
+    //Thermometer
+    dataFile.print("\nThermometer:\n");
+    dataFile.print(" Degrees C1 = ");
+    dataFile.println(myIMU.readTempC(), 4);
+    dataFile.print(" Degrees F1 = ");
+    dataFile.println(myIMU.readTempF(), 4);
+
+    Time now = pcf.getTime();//get current time
+    //print current time
+    dataFile.print(now.day);
+    dataFile.print("/");
+    dataFile.print(now.month);
+    dataFile.print("/");
+    dataFile.print(now.year);
+    dataFile.print(" ");
+    dataFile.print(now.hour);
+    dataFile.print(":");
+    dataFile.print(now.minute);
+    dataFile.print(":");
+    dataFile.println(now.second);
+    // close after writing
     dataFile.close();
-    // print to the serial port too:
-    Serial.println(dataString);
   }
   // if the file isn't open, pop up an error:
   else {
