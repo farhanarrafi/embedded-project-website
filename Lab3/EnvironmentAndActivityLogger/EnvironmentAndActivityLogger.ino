@@ -29,7 +29,7 @@ const int buttonPinBLE = 4; // set buttonPin to digital pin 4
 
 // Battery Voltage Threshold
 
-const float batteryThreshold = 3.80;
+const float batteryThreshold = 1.0;
 
 
 // SD Card Start
@@ -51,11 +51,13 @@ bool SYSTEM_ON = false;
 
 bool LOW_BATTERY = false;
 
+bool SYSTEM_INTIALIZED = false;
+
 void setup() {
   // Initialize serial communication at 9600 bits per second:
   // Serial.begin(9600);
   Serial.begin(9600);
-  while (!Serial);
+  //while (!Serial);
   SYSTEM_ON = false;
   // setup Bluetooth
   setupBluetooth();
@@ -78,6 +80,7 @@ void loop() {
 
   // update LED, either central has written to characteristic or button state has changed
   if (SYSTEM_ON) {
+    SYSTEM_INTIALIZED = true;
     //Serial.println("System on");
     showVoltageAndSystemStatus(true);
     writeDatainSDCard();
@@ -125,11 +128,11 @@ void showVoltageAndSystemStatus(bool systemStatus) {
       u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
       u8x8.print(batteryString);
       u8x8.setCursor( 0 , 1); // (columns, row)
-      u8x8.print("                    ");
+      u8x8.print("                ");
       u8x8.setCursor( 0 , 2 );
-      u8x8.print("Sys: OFF");
+      u8x8.print("Sys: OFF        ");
       u8x8.setCursor( 0 , 3 );
-      u8x8.print("                    ");
+      u8x8.print("                ");
       u8x8.setCursor( 0 , 4 );
       u8x8.print(timeString);
     } else {
@@ -137,11 +140,11 @@ void showVoltageAndSystemStatus(bool systemStatus) {
       u8x8.setCursor( 0 , 0 ); // It will start printing from (0,0) location
       u8x8.print(batteryString);
       u8x8.setCursor( 0 , 1); // (columns, row)
-      u8x8.print("                    ");
+      u8x8.print("                ");
       u8x8.setCursor( 0 , 2 );
-      u8x8.print("Sys: ON ");
+      u8x8.print("Sys: ON         ");
       u8x8.setCursor( 0 , 3 );
-      u8x8.print("                    ");
+      u8x8.print("                ");
       u8x8.setCursor( 0 , 4 );
       u8x8.print(timeString);
     }
@@ -153,7 +156,7 @@ void showVoltageAndSystemStatus(bool systemStatus) {
     u8x8.setCursor( 0 , 1); // (columns, row)
     u8x8.print("Logging Stopped");
     u8x8.setCursor( 0 , 2 );
-    u8x8.print("                    ");
+    u8x8.print(batteryString);
     u8x8.setCursor( 0 , 3 );
     u8x8.print("                    ");
     u8x8.setCursor( 0 , 4 );
@@ -174,10 +177,10 @@ void setupClock() {
   //Run only first time. Then comment out.
   // pcf.setYear(24);//set year
   // pcf.setMonth(2);//set month
-  // pcf.setDay(5);//set date
-  // pcf.setHour(22);//set hour
-  // pcf.setMinut(37);//set minut
-  // pcf.setSecond(13);//set second
+  // pcf.setDay(7);//set date
+  // pcf.setHour(5);//set hour
+  // pcf.setMinut(54);//set minut
+  // pcf.setSecond(48);//set second
 
   pcf.startClock();//start the clock
 }
@@ -262,7 +265,7 @@ void setupSDCard() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   // wait for Serial Monitor to connect. Needed for native USB port boards only:
-  while (!Serial);
+  //while (!Serial);
 
   Serial.print("Initializing SD card...");
 
