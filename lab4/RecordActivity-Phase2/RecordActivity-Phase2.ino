@@ -25,15 +25,19 @@ void setup() {
   Serial.begin(9600);
   u8x8.begin();
 
-  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
   u8x8.setFlipMode(1);  // set number from 1 to 3, the screen word will rotary 180
-
+  u8x8.setFont(u8x8_font_chroma48medium8_r);
   // while (!Serial);
   //Call .begin() to configure the IMUs
   if (myIMU.begin() != 0) {
-    Serial.println("Device error");
+    //Serial.println("Device error");
+    u8x8.print("Device error");
   } else {
-    Serial.println("Device OK!");
+    //Serial.println("Device OK!");
+    u8x8.print("Device OK!");
   }
 
   Wire.begin();
@@ -42,7 +46,9 @@ void setup() {
   pcf.startClock();  //start the clock
 
   if (!SD.begin(chipSelect)) {
-    Serial.println("Card failed, or not present");
+    //Serial.println("Card failed, or not present");
+    u8x8.clear();
+    u8x8.print("Insert SD Card!");
     // don't do anything more:
     while (1)
       ;
@@ -73,12 +79,13 @@ void setup() {
 void loop() {
   Time nowTime = pcf.getTime();  //get current time
 
-  u8x8.setFont(u8x8_font_chroma48medium8_r);
   u8x8.clear();
 
   // u8x8.setCursor(0, 0);
   // u8x8.print("Data Collection");
-  digitalWrite(LED_BUILTIN, HIGH);
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_BLUE, HIGH);
+  digitalWrite(LED_GREEN, HIGH);
 
   float accelxDataArray[1000];
   float accelyDataArray[1000];
@@ -90,6 +97,8 @@ void loop() {
 
 
   // Serial.print(millis());
+  digitalWrite(LED_BLUE, LOW);
+  u8x8.print("Recording data");
   for (int i = 0; i < 1000; i++) {
     // Serial.println(millis());
     accelxDataArray[i] = float(myIMU.readFloatAccelX());
@@ -102,13 +111,17 @@ void loop() {
 
     delay(7);  // To ensure 10 seconds of data in each batch
   }
+  digitalWrite(LED_BLUE, HIGH);
+  
 
   // Serial.print(",");
   // Serial.print(millis());
   // Serial.print(",");
-
+  u8x8.clear();
   File dataFile = SD.open("datalog.txt", FILE_WRITE);
   if (dataFile) {
+    digitalWrite(LED_GREEN, LOW);
+    u8x8.print("Writing on SD");
     for (int j = 0; j < 1000; j++) {
       dataFile.print(nowTime.hour);
       dataFile.print(":");
@@ -128,10 +141,11 @@ void loop() {
       dataFile.print(", ");
       dataFile.println(gyrzDataArray[j]);
     }
+    digitalWrite(LED_GREEN, HIGH);
     u8x8.setCursor(0, 0);
-    u8x8.print("Data Collection");
+    u8x8.clear();
     // LED would blink (red) after each successful file write
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(LED_RED, LOW);
     // Serial.println(millis());
   }
   dataFile.close();
