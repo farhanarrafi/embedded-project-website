@@ -21,12 +21,12 @@ U8X8_SSD1306_128X64_NONAME_HW_I2C u8x8(/* clock=*/PIN_WIRE_SCL, /*data=*/PIN_WIR
 //Create a instance of class LSM6DS3
 LSM6DS3 myIMU(I2C_MODE, 0x6A);  //I2C device address 0x6A
 
-const float accelerationThreshold = 2;  // threshold of significant in G's
+const PROGMEM float accelerationThreshold = 2;  // threshold of significant in G's
 //const int numSamples = 119;
-const int numSamples = 250;
+const PROGMEM int numSamples = 250;
 int samplesRead = numSamples;
 
-const int chipSelect = 2;
+const PROGMEM int chipSelect = 2;
 
 // global variables used for TensorFlow Lite (Micro)
 tflite::MicroErrorReporter tflErrorReporter;
@@ -47,12 +47,11 @@ constexpr int tensorArenaSize = 8 * 1024;
 byte tensorArena[tensorArenaSize] __attribute__((aligned(16)));
 
 // array to map gesture index to a name
-const char* GESTURES[] = {
+const PROGMEM char* GESTURES[] = {
   "Sitting",
   "Walking",
   "Busing",
-  "climbing_up",
-  "climbing_down"
+  "Climbing"
 };
 
 #define NUM_GESTURES (sizeof(GESTURES) / sizeof(GESTURES[0]))
@@ -63,9 +62,9 @@ void setup() {
   u8x8.setFlipMode(1);  // set number from 1 to 3, the screen word will rotary 180
   u8x8.setFont(u8x8_font_chroma48medium8_r);
 
-  pinMode(LED_RED, OUTPUT);
   pinMode(LED_BLUE, OUTPUT);
   pinMode(LED_GREEN, OUTPUT);
+  digitalWrite(LED_BLUE, LOW);
 
   if (myIMU.begin() != 0) {
     u8x8.print("Device error");
@@ -112,6 +111,7 @@ void setup() {
   dataFile.println("Activity");
   // You can add the label here just make sure to only use "println" for the last thing you want to print
   dataFile.close();
+  digitalWrite(LED_BLUE, HIGH);
 }
 
 void loop() {
@@ -121,8 +121,6 @@ void loop() {
   float aX, aY, aZ, gX, gY, gZ;
 
   u8x8.clear();
-
-  digitalWrite(LED_RED, HIGH);
   digitalWrite(LED_BLUE, HIGH);
   digitalWrite(LED_GREEN, HIGH);
 
@@ -180,11 +178,11 @@ void loop() {
         return;
       }
 
-
-
+      digitalWrite(LED_GREEN, LOW);
+      u8x8.print("Writing in SD");
+      File dataFile = SD.open("datalog.txt", FILE_WRITE);
       // Loop through the output tensor values from the model
       for (int i = 0; i < NUM_GESTURES; i++) {
-        File dataFile = SD.open("datalog.txt", FILE_WRITE);
         if (dataFile) {
           for (int j = 0; j < 1000; j++) {
             dataFile.print(nowTime.hour);
@@ -198,8 +196,9 @@ void loop() {
             dataFile.println(tflOutputTensor->data.f[i], 6);
           }
         }
-        dataFile.close();
       }
+      dataFile.close();
+      digitalWrite(LED_GREEN, HIGH);
     }
   }
 }
