@@ -23,7 +23,7 @@ LSM6DS3 myIMU(I2C_MODE, 0x6A);  //I2C device address 0x6A
 
 const PROGMEM float accelerationThreshold = 2;  // threshold of significant in G's
 //const int numSamples = 119;
-const PROGMEM int numSamples = 250;
+const PROGMEM int numSamples = 119;
 int samplesRead = numSamples;
 
 const PROGMEM int chipSelect = 2;
