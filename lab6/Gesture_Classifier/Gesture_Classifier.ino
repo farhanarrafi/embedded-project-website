@@ -47,7 +47,7 @@ constexpr int tensorArenaSize = 8 * 1024;
 byte tensorArena[tensorArenaSize] __attribute__((aligned(16)));
 
 // array to map gesture index to a name
-const PROGMEM char* GESTURES[] = {
+const char* GESTURES[] = {
   "Sitting",
   "Walking",
   "Busing",
@@ -178,13 +178,19 @@ void loop() {
         return;
       }
 
+
       digitalWrite(LED_GREEN, LOW);
       u8x8.print("Writing in SD");
       File dataFile = SD.open("datalog.txt", FILE_WRITE);
       // Loop through the output tensor values from the model
       for (int i = 0; i < NUM_GESTURES; i++) {
-        if (dataFile) {
-          for (int j = 0; j < 1000; j++) {
+        float maxProb = 0.0;
+        for (int j = 0; j < 1000; j++) {
+          if (tflOutputTensor->data.f[i] > maxProb) {
+            maxProb = tflOutputTensor->data.f[i];
+          }
+        }
+        if (dataFile && maxProb > 0.6) {
             dataFile.print(nowTime.hour);
             dataFile.print(":");
             dataFile.print(nowTime.minute);
@@ -193,9 +199,8 @@ void loop() {
             dataFile.print(", ");
             dataFile.print(GESTURES[i]);
             dataFile.print(" : ");
-            dataFile.println(tflOutputTensor->data.f[i], 6);
+            dataFile.println(maxProb, 6);
           }
-        }
       }
       dataFile.close();
       digitalWrite(LED_GREEN, HIGH);
