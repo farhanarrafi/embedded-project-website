@@ -108,11 +108,11 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 
 
 /* Switch and LED definitions -------------------------------------------------------- */
-#define RED_LED_PIN D4  // Red Light
-#define ORA_LED_PIN D5  // Orange Light
-#define GRE_LED_PIN D6  // Green Light
-//#define LED_PIN D3   // Pedestrian GO Light
-#define PED_SWITCH_PIN D7  // Pedestrian Switch
+#define RED_LED_PIN D9  // Red Light
+#define ORA_LED_PIN D8  // Orange Light
+#define GRE_LED_PIN D7  // Green Light
+//#define LED_BUILTIN   // Pedestrian GO Light
+#define PED_SWITCH_PIN D6  // Pedestrian Switch
 
 #define G 0  // Green Light
 #define Y 1  // Yellow Light
@@ -124,19 +124,13 @@ bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf
 #define PG 2  // Pedestrians Go
 #define PW 3  // Pedestrians Wait
 
-#define PORTE = 0x03; // Enable pull-ups for the lower 2 bits
-
-const int trafficLightPin = 5; // pin for traffic light
-const int pedLightPin = 6;    // pin for pedestrian light
-const int buttonPin = 7;      // Pedestrian button
-
 
 struct state {
-  unsigned char traffic_light;
-  unsigned char ped_light;
+  unsigned char trafficLight;
+  unsigned char pedLight;
   unsigned long delay;
   unsigned char next[4];  //index of the state
-}
+};
 typedef struct state SType;
 SType FSM[4] = {
   { G, OFF, 3000, { CG, CW, CW, CW } },  // Cars Go
@@ -145,7 +139,16 @@ SType FSM[4] = {
   { G, OFF, 2000, { CG, CG, CG, CG } }   // Pedestrians Wait
 };
 
+unsigned long startTime = 0;
 
+bool carDetected = false;
+bool pedestrianPressed = false;
+
+unsigned long blinkInterval = 1000;
+unsigned long blinkStart = 0;
+bool pedLedOn = false;
+
+int STATE = 0;
 
 /**
 * @brief      Arduino setup function
@@ -172,12 +175,20 @@ void setup() {
   pinMode(GRE_LED_PIN, OUTPUT);           // Set Green LED as output
   pinMode(LED_BUILTIN, OUTPUT);           // Set PedestrainLED as output
   pinMode(PED_SWITCH_PIN, INPUT_PULLUP);  // Set pedestrain switch as input with internal pull-up
-
-
+  
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(ORA_LED_PIN, LOW);
   digitalWrite(GRE_LED_PIN, LOW);
-  digitalWrite(LED_BUILTIN, LOW);
+  digitalWrite(LED_BUILTIN, HIGH); // HIGH is OFF for Builtin LED
+
+  startTime = millis();
+
+  blinkStart = startTime;
+  
+  // set initial state
+  int STATE = CG;
+  // Update traffic light based on initial state
+  //updateTrafficLights(STATE);
 }
 
 /**
@@ -187,14 +198,60 @@ void setup() {
 */
 void loop() {
 
-  int S = CG;
+  // if (digitalRead(PED_SWITCH_PIN) == HIGH) {  // If switch is pressed (LOW because of pull-up)
+  //   digitalWrite(RED_LED_PIN, HIGH);          // Turn on LED
+  // } else {
+  //   digitalWrite(RED_LED_PIN, LOW);  // Turn off LED
+  // }
 
-  while (true) {
-    PORTB = FSM[S].out;
-    wait(FSM[S], FSM[S].delay);
-    Input = PORTE = &0x03;
-    S = FSM[S].next[Input];
+  
+  if (digitalRead(PED_SWITCH_PIN) == HIGH) {  // If switch is pressed (LOW because of pull-up)
+    pedestrianPressed = true;
+    ei_printf("pedestrianPressed: true\n");
+    ei_printf("FSM[STATE].next[1]: %lu\n", FSM[STATE].next[1]);
   }
+  unsigned long currentTime = millis();
+  if (currentTime - startTime >= FSM[STATE].delay) {
+    switch (STATE) {
+      case CG:
+        if (carDetected || pedestrianPressed) {
+          STATE = FSM[STATE].next[1];
+          carDetected = false;
+        } else {
+          STATE = FSM[STATE].next[0];
+        }
+        pedestrianPressed = false;
+        ei_printf("STATE: CG\n");
+        break;
+      case CW:
+        STATE = FSM[STATE].next[0];
+        ei_printf("STATE: CW\n");
+        break;
+      case PG:
+        if (pedestrianPressed) {
+          STATE = FSM[STATE].next[0];
+        } else {
+          STATE = FSM[STATE].next[2];
+        }
+        ei_printf("STATE: PG\n");
+        break;
+      case PW:
+        STATE = FSM[STATE].next[0];
+        ei_printf("STATE: PW\n");
+        break;
+      default:
+        break;
+    }
+    updateTrafficLights(STATE);
+  }
+  
+
+  // while (true) {
+  //   PORTB = FSM[S].out;
+  //   wait(FSM[S], FSM[S].delay);
+  //   Input = PORTE = &0x03;
+  //   S = FSM[S].next[Input];
+  // }
 
   // if (digitalRead(PED_SWITCH_PIN) == HIGH) {  // If switch is pressed (LOW because of pull-up)
   //   digitalWrite(RED_LED_PIN, HIGH);          // Turn on LED
@@ -235,8 +292,8 @@ void loop() {
   }
 
   // print the predictions
-  ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
-            result.timing.dsp, result.timing.classification, result.timing.anomaly);
+  //ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
+  //          result.timing.dsp, result.timing.classification, result.timing.anomaly);
 
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
   bool bb_found = result.bounding_boxes[0].value > 0;
@@ -246,10 +303,10 @@ void loop() {
       continue;
     }
     ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-    carDetected = detectCar(bb.value);
+    carDetected = true;
   }
   if (!bb_found) {
-    ei_printf("    No objects found\n");
+    //ei_printf("    No objects found\n");
   }
 #else
   for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++) {
@@ -267,8 +324,49 @@ void loop() {
 }
 
 
-bool detectCar(float prediction) {
-  return prediction > 0.9;
+
+void blinkPedLight() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - blinkStart >= blinkInterval) {
+    blinkStart = currentMillis;     // Save the last time the LED toggled
+    pedLedOn = !pedLedOn;
+    digitalWrite(LED_BUILTIN, pedLedOn ? LOW : HIGH);    // Apply state
+  }
+}
+
+void updateTrafficLights(int state) {
+  ei_printf("inside updateTrafficLights()\n");
+  //digitalWrite(LED_BUILTIN, FSM[STATE].pedLight == ON ? LOW : HIGH);
+  if(FSM[STATE].pedLight == ON) {
+    blinkPedLight();
+  } else {
+    //blinkStart = 0;
+    pedLedOn = false;
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+  switch (FSM[STATE].trafficLight) {
+    case R:
+      digitalWrite(RED_LED_PIN, HIGH);
+      digitalWrite(ORA_LED_PIN, LOW);
+      digitalWrite(GRE_LED_PIN, LOW);
+      break;
+    case G:
+      digitalWrite(RED_LED_PIN, LOW);
+      digitalWrite(ORA_LED_PIN, LOW);
+      digitalWrite(GRE_LED_PIN, HIGH);
+      break;
+    case Y:
+      digitalWrite(RED_LED_PIN, LOW);
+      digitalWrite(ORA_LED_PIN, HIGH);
+      digitalWrite(GRE_LED_PIN, LOW);
+      break;
+    default:
+      digitalWrite(RED_LED_PIN, LOW);
+      digitalWrite(ORA_LED_PIN, LOW);
+      digitalWrite(GRE_LED_PIN, LOW);
+      break;
+  }
+  startTime = millis();
 }
 
 /**
