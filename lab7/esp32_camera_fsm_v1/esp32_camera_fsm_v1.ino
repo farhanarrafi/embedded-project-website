@@ -134,7 +134,7 @@ struct state {
 typedef struct state SType;
 SType FSM[4] = {
   { G, OFF, 3000, { CG, CW, CW, CW } },  // Cars Go
-  { Y, OFF, 2000, { PG, PG, CW, PG } },  // Cars Wait
+  { Y, OFF, 2000, { PG, PG, PG, PG } },  // Cars Wait
   { R, ON, 5000, { PG, PG, PW, PG } },   // Pedestrians Go
   { G, OFF, 2000, { CG, CG, CG, CG } }   // Pedestrians Wait
 };
@@ -144,11 +144,11 @@ unsigned long startTime = 0;
 bool carDetected = false;
 bool pedestrianPressed = false;
 
-unsigned long blinkInterval = 1000;
+unsigned long blinkInterval = 500;
 unsigned long blinkStart = 0;
-bool pedLedOn = false;
+bool pedestrianLedOn = false;
 
-int STATE = 0;
+int STATE = CG;
 
 /**
 * @brief      Arduino setup function
@@ -183,7 +183,7 @@ void setup() {
 
   startTime = millis();
 
-  blinkStart = startTime;
+  
   
   // set initial state
   int STATE = CG;
@@ -210,17 +210,19 @@ void loop() {
     ei_printf("pedestrianPressed: true\n");
     ei_printf("FSM[STATE].next[1]: %lu\n", FSM[STATE].next[1]);
   }
+
   unsigned long currentTime = millis();
   if (currentTime - startTime >= FSM[STATE].delay) {
+    ei_printf("Inside STATE SWITCH ---------------- Inside STATE SWITCH\n");
     switch (STATE) {
       case CG:
         if (carDetected || pedestrianPressed) {
           STATE = FSM[STATE].next[1];
           carDetected = false;
+          pedestrianPressed = false;
         } else {
           STATE = FSM[STATE].next[0];
         }
-        pedestrianPressed = false;
         ei_printf("STATE: CG\n");
         break;
       case CW:
@@ -230,6 +232,7 @@ void loop() {
       case PG:
         if (pedestrianPressed) {
           STATE = FSM[STATE].next[0];
+          pedestrianPressed = false;
         } else {
           STATE = FSM[STATE].next[2];
         }
@@ -243,6 +246,20 @@ void loop() {
         break;
     }
     updateTrafficLights(STATE);
+    startTime = millis();
+    blinkStart = startTime;
+  }
+
+  if(FSM[STATE].pedLight == ON) {
+    unsigned long currentMillis = millis();
+    if (currentMillis - blinkStart >= blinkInterval) {
+      blinkStart = currentMillis; 
+      pedestrianLedOn = !pedestrianLedOn;
+      digitalWrite(LED_BUILTIN, pedestrianLedOn ? LOW : HIGH);
+    }
+  } else {
+    pedestrianLedOn = false;
+    digitalWrite(LED_BUILTIN, HIGH);
   }
   
 
@@ -323,27 +340,8 @@ void loop() {
   free(snapshot_buf);
 }
 
-
-
-void blinkPedLight() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - blinkStart >= blinkInterval) {
-    blinkStart = currentMillis;     // Save the last time the LED toggled
-    pedLedOn = !pedLedOn;
-    digitalWrite(LED_BUILTIN, pedLedOn ? LOW : HIGH);    // Apply state
-  }
-}
-
 void updateTrafficLights(int state) {
   ei_printf("inside updateTrafficLights()\n");
-  //digitalWrite(LED_BUILTIN, FSM[STATE].pedLight == ON ? LOW : HIGH);
-  if(FSM[STATE].pedLight == ON) {
-    blinkPedLight();
-  } else {
-    //blinkStart = 0;
-    pedLedOn = false;
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
   switch (FSM[STATE].trafficLight) {
     case R:
       digitalWrite(RED_LED_PIN, HIGH);
@@ -366,7 +364,6 @@ void updateTrafficLights(int state) {
       digitalWrite(GRE_LED_PIN, LOW);
       break;
   }
-  startTime = millis();
 }
 
 /**
