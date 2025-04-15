@@ -320,7 +320,9 @@ void loop() {
       continue;
     }
     ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
-    carDetected = true;
+    if (bb.value > 0.9) {
+      carDetected = true;
+    }
   }
   if (!bb_found) {
     //ei_printf("    No objects found\n");
