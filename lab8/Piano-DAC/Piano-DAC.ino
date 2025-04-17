@@ -1,9 +1,10 @@
 #include "esp_timer.h"
 
-// === 3-bit Sine Wave Table (0 to 7) ===
-const uint8_t SineWave[16] = {
-  4, 5, 6, 7, 7, 7, 6, 5,
-  4, 3, 2, 1, 1, 1, 2, 3
+const uint8_t SineWave[32] = {
+  8,  9, 10, 12, 13, 14, 14, 15,
+ 15, 15, 14, 14, 13, 12, 10,  9,
+  8,  6,  5,  3,  2,  1,  1,  0,
+  0,  0,  1,  1,  2,  3,  5,  6
 };
 
 volatile uint8_t Index = 0;
@@ -15,7 +16,7 @@ const int DAC_PINS[4] = {0, 1, 2, 3};
 // === Switch pin (active-high when pressed) ===
 const int KEY_PINS[4] = {D7, D8, D9, D10};  // Updated from D6 to D3
 
-const int timerPeriods[4] = {120, 106, 95, 80}; // Approximate values
+const int timerPeriods[4] = {120, 106, 95, 80}; // Approximate values {238, 213, 189, 159}
 
 // === For edge detection ===
 bool lastSwitchState = LOW;
@@ -41,8 +42,10 @@ void DAC_Out(uint8_t value) {
 // === Timer callback function ===
 void onTimer(void* arg) {
   if (waveformActive) {
-    Index = (Index + 1) & 0x0F;
+    Index = (Index + 1) & 0x1F;
     DAC_Out(SineWave[Index]);
+  } else {
+    DAC_Out(0);
   }
 }
 
@@ -76,11 +79,10 @@ void loop() {
     if (digitalRead(KEY_PINS[i]) == HIGH) {
       currentSwitchState = digitalRead(KEY_PINS[i]);
       waveformActive = true;
-      esp_timer_start_periodic(periodic_timer, timerPeriods[i]); // 625 µs for ~100Hz sine wave          // Start the timer
-      return;
+      esp_timer_start_periodic(periodic_timer, timerPeriods[i]); // 625 µs for ~100Hz sine wave timerPeriods[i]          // Start the timer
     } else {
-    waveformActive = false;
-    DAC_Out(0); // Silence when button is released
+      waveformActive = false;
+      DAC_Out(0); // Silence when button is released
     }
   }
 
