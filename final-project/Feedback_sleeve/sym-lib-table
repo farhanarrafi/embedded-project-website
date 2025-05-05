@@ -1,0 +1,5 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "DRV2605L")(type "KiCad")(uri "/Users/farhan/Documents/KiCad/8.0/ul_DRV2605LDGSR/KiCADv6/2025-05-04_10-06-27.kicad_sym")(options "")(descr ""))
+  (lib (name "CKCL22JB1C105M085AB")(type "KiCad")(uri "/Users/farhan/Documents/KiCad/8.0/CKCL22JB1C105M085AB/KiCADv6/2025-05-05_00-35-32.kicad_sym")(options "")(descr ""))
+)
