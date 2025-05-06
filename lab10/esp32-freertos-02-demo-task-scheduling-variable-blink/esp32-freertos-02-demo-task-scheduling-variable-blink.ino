@@ -15,7 +15,6 @@ static const uint8_t buf_len = 20;
 static const int led_pin = LED_BUILTIN;
 // Globals
 static int led_delay = 500;  // ms
-
 //*****************************************************************************
 // Tasks
 // Task: Blink LED at rate set by global variable
@@ -37,7 +36,6 @@ void readSerial(void *parameters) {
   uint8_t idx = 0;
   // Clear whole buffer
   memset(buf, 0, buf_len);
-
   // Loop forever
   while (1) {
     // Read characters from serial
@@ -62,8 +60,6 @@ void readSerial(void *parameters) {
 }
 //*****************************************************************************
 // Main
-
-
 void setup() {
   // Configure pin
   pinMode(led_pin, OUTPUT);
@@ -83,7 +79,6 @@ void setup() {
     app_cpu);               // Run on one core for demo purposes (ESP32 only)
 
 
-
   // Start serial read task
   xTaskCreatePinnedToCore(  // Use xTaskCreate() in vanilla FreeRTOS
     readSerial,             // Function to be called
@@ -97,5 +92,5 @@ void setup() {
   vTaskDelete(NULL);
 }
 void loop() {
-  // Execution should never get her
+  // Execution should never get here
 }

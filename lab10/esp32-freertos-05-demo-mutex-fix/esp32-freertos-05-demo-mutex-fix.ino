@@ -18,20 +18,20 @@ void incTask(void *parameters) {
   // Loop forever
   while (1) {
     // Take mutex prior to critical section
-
-
     if (xSemaphoreTake(mutex, 0) == pdTRUE) {
       // Critical section (poor demonstration of "shared_var++")
       local_var = shared_var;
       local_var++;
       vTaskDelay(random(100, 500) / portTICK_PERIOD_MS);
       shared_var = local_var;
+
       // Print out new shared variable
       // This is different than in the video--print shared_var inside the
       // critical section to avoid having it be changed by the other task.
       Serial.print(pcTaskGetName(NULL));
       Serial.print(" : ");
       Serial.println(shared_var);
+
       // Give mutex after critical section
       xSemaphoreGive(mutex);
       taskYIELD();  // give the other task a chance to run

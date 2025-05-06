@@ -1,18 +1,17 @@
-/*
-* One task reads from Serial, constructs a message buffer, 
-and the second *prints the message to the console.
-* /
+/**
+* One task reads from Serial, constructs a message buffer, and the second
+* prints the message to the console.
+*/
 // If your Arduino board does not have LED_BUILTIN, set it here to LED pin
 //#define LED_BUILTIN 13
 // Use only core 1 for demo purposes
 #if CONFIG_FREERTOS_UNICORE
-                                                              static const BaseType_t app_cpu = 0;
+static const BaseType_t app_cpu = 0;
 #else
-                                                                static const BaseType_t app_cpu = 1;
+static const BaseType_t app_cpu = 1;
 #endif
 // Settings
 static const uint8_t buf_len = 255;
-
 // Globals
 static char *msg_ptr = NULL;
 static volatile uint8_t msg_flag = 0;
@@ -25,6 +24,7 @@ void readSerial(void *parameters) {
   uint8_t idx = 0;
   // Clear whole buffer
   memset(buf, 0, buf_len);
+
   // Loop forever
   while (1) {
     // Read characters from serial
@@ -49,7 +49,6 @@ void readSerial(void *parameters) {
           // Copy message
           memcpy(msg_ptr, buf, idx);
           // Notify other task that message is ready
-
           msg_flag = 1;
         }
         // Reset receive buffer and index counter
@@ -101,6 +100,7 @@ void setup() {
                           1,
                           NULL,
                           app_cpu);
+
   // Delete "setup and loop" task
   vTaskDelete(NULL);
 }
