@@ -1,0 +1,10 @@
+{
+	"files.associations": {
+		".fantomasignore": "ignore",
+		"__config": "cpp",
+		"deque": "cpp",
+		"print": "cpp",
+		"algorithm": "cpp",
+		"sstream": "cpp"
+	}
+}
