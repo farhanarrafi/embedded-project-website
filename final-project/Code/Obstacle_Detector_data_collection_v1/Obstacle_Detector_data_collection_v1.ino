@@ -22,9 +22,9 @@
 // VL53L8CX Definitions
 
 #ifdef ARDUINO_SAM_DUE
-  #define DEV_I2C Wire1
+#define DEV_I2C Wire1
 #else
-  #define DEV_I2C Wire
+#define DEV_I2C Wire
 #endif
 #define SerialPort Serial
 
@@ -47,8 +47,8 @@ const char* password = "AshenB0ish@Jan";
 // NTP settings
 const char* googleNtpServer = "time.google.com";
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = -6 * 3600;        // GMT offset in seconds (e.g., 0 for UTC)
-const long   daylightOffset_sec = 3600;   // DST offset in seconds (3600 for +1hr)
+const long gmtOffset_sec = -6 * 3600;  // GMT offset in seconds (e.g., 0 for UTC)
+const long daylightOffset_sec = 3600;  // DST offset in seconds (3600 for +1hr)
 
 WiFiUDP ntpUDP;
 
@@ -62,7 +62,7 @@ unsigned long lastCaptureTime = 0;
 unsigned long startTime = 0;
 int imageCount = 1;
 bool camera_sign = false;
-bool sd_sign = false;
+bool hasSDcard = false;
 
 String timeString = "";
 const int DATA_CAPTURES_PER_IMAGE = 5;
@@ -96,34 +96,16 @@ const char* wl_status_to_string(wl_status_t status) {
 }
 
 void timeSetup() {
-
-  // int n = WiFi.scanNetworks();
-  // if (n == 0) {
-  //   Serial.println("No networks found.");
-  // } else {
-  //   Serial.println("Networks found:");
-  //   for (int i = 0; i < n; ++i) {
-  //     Serial.print(i + 1);
-  //     Serial.print(": ");
-  //     Serial.println(WiFi.SSID(i));
-  //   }
-  // }
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.println(wl_status_to_string(WiFi.status()));
   }
   Serial.println(" Connected!");
 
-  // Init and get the time
-  // configTime(gmtOffset_sec, daylightOffset_sec, "cpe-ntpr.verizon.com", "cpe-ntpb.verizon.com", "cpe-ntpa.verizon.com");
-  // setenv("TZ", "CST6CDT,M3.2.0,M11.1.0", 1);
-  // tzset();
   timeClient.begin();
- 
-  // Serial.println(getLocalTimeString());
 }
 
 // Setup
@@ -156,8 +138,8 @@ void cameraSetup() {
   config.jpeg_quality = 12;
   config.fb_count = 1;
 
-  if(config.pixel_format == PIXFORMAT_JPEG){
-    if(psramFound()){
+  if (config.pixel_format == PIXFORMAT_JPEG) {
+    if (psramFound()) {
       config.jpeg_quality = 10;
       config.fb_count = 2;
       config.grab_mode = CAMERA_GRAB_LATEST;
@@ -175,23 +157,11 @@ void cameraSetup() {
   }
   camera_sign = true;
 
-  // Initialize SD card
-  if(!SD.begin(21)){
-    Serial.println("Card Mount Failed");
-    return;
-  }
-  if(SD.cardType() == CARD_NONE){
-    Serial.println("No SD card attached");
-    return;
-  }
-  sd_sign = true;
-
   Serial.println("Photos will begin in 2 seconds...");
   startTime = millis();
 }
 
-void sensorSetup()
-{
+void sensorSetup() {
 
   // Enable PWREN pin if present
   if (PWREN_PIN >= 0) {
@@ -219,6 +189,17 @@ void loop() {
 
   Serial.println(timeString);
 
+  // Initialize SD card
+  if (!SD.begin(21)) {
+    Serial.println("Card Mount Failed");
+    return;
+  }
+  if (SD.cardType() == CARD_NONE) {
+    Serial.println("No SD card attached");
+    return;
+  }
+  hasSDcard = true;
+
   cameraLoop();
   int8_t i;
   for (i = 0; i < DATA_CAPTURES_PER_IMAGE; i++) {
@@ -227,15 +208,15 @@ void loop() {
   writeSensorDataInFile();
 
   // Clear contents
-  sensorDataString.str("");         
-  //sensorDataString.clear(); 
+  sensorDataString.str("");
+  //sensorDataString.clear();
 
   delay(1000);
 }
 
 // Main loop
 void cameraLoop() {
-  if(camera_sign && sd_sign){
+  if (camera_sign && hasSDcard) {
     unsigned long now = millis();
 
     if ((now - lastCaptureTime) >= 4000) {
@@ -252,27 +233,31 @@ void cameraLoop() {
       imageCount++;
       lastCaptureTime = now;
     }
+  } else {
+    Serial.printf("Insert SD card to record sensor Data!");
   }
 }
 
-void sensorLoop()
-{
-  VL53L8CX_ResultsData Results;
-  uint8_t NewDataReady = 0;
+void sensorLoop() {
+  if (hasSDcard) {
+    VL53L8CX_ResultsData Results;
+    uint8_t NewDataReady = 0;
 
-  do {
-    status = tof_sensor.check_data_ready(&NewDataReady);
-  } while (!NewDataReady);
+    do {
+      status = tof_sensor.check_data_ready(&NewDataReady);
+    } while (!NewDataReady);
 
-  if ((!status) && (NewDataReady != 0)) {
-    status = tof_sensor.get_ranging_data(&Results);
-    saveSensorData(&Results);
+    if ((!status) && (NewDataReady != 0)) {
+      status = tof_sensor.get_ranging_data(&Results);
+      saveSensorData(&Results);
+    }
+    delay(100);
+  } else {
+    Serial.printf("Insert SD card to record sensor Data!");
   }
-  delay(100);
 }
 
-void saveSensorData(VL53L8CX_ResultsData *Result)
-{
+void saveSensorData(VL53L8CX_ResultsData* Result) {
   int8_t i, j, k, l;
   uint8_t zones_per_line;
   uint8_t number_of_zones = res;
@@ -296,9 +281,16 @@ void saveSensorData(VL53L8CX_ResultsData *Result)
           long ambient = (long)Result->ambient_per_spad[zoneIndex];
           long distance = (long)Result->distance_mm[dataIndex];
           long status = (long)Result->target_status[dataIndex];
-          sensorDataString << distance << "," << status << ","  << signal << ","  << ambient << ",";
+          sensorDataString << distance << "," << status << "," << signal << "," << ambient << ",";
         } else {
-          sensorDataString << "X" << "," << "X" << "," << "X" << "," << "X" << ",";
+          sensorDataString << "X"
+                           << ","
+                           << "X"
+                           << ","
+                           << "X"
+                           << ","
+                           << "X"
+                           << ",";
         }
       }
     }
@@ -311,19 +303,19 @@ void saveSensorData(VL53L8CX_ResultsData *Result)
 }
 
 // Write file to SD
-void writeFile(fs::FS &fs, const char * path, uint8_t * data, size_t len){
-    Serial.printf("Writing file: %s\r\n", path);
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("Failed to open file for writing");
-        return;
-    }
-    if(file.write(data, len) == len){
-        Serial.println("File written");
-    } else {
-        Serial.println("Write failed");
-    }
-    file.close();
+void writeFile(fs::FS& fs, const char* path, uint8_t* data, size_t len) {
+  Serial.printf("Writing file: %s\r\n", path);
+  File file = fs.open(path, FILE_WRITE);
+  if (!file) {
+    Serial.println("Failed to open file for writing");
+    return;
+  }
+  if (file.write(data, len) == len) {
+    Serial.println("File written");
+  } else {
+    Serial.println("Write failed");
+  }
+  file.close();
 }
 
 void writeSensorDataInFile() {
@@ -331,22 +323,21 @@ void writeSensorDataInFile() {
   Serial.println("writeSensorDataInFile");
   Serial.println(str);
   File file = SD.open("/datafile.txt", FILE_APPEND);
-    if(!file){
-        Serial.println("Failed to open datafile file for writing sensor data!");
-        return;
-    }
-    if(file.print(str)){
-        Serial.println("Sensor data written in file!");
-    } else {
-        Serial.println("Sensor data write failed!");
-    }
-    file.close();
-    
+  if (!file) {
+    Serial.println("Failed to open datafile file for writing sensor data!");
+    return;
+  }
+  if (file.print(str)) {
+    Serial.println("Sensor data written in file!");
+  } else {
+    Serial.println("Sensor data write failed!");
+  }
+  file.close();
 }
 
 // Save photo to SD
-void photo_save(const char * fileName) {
-  camera_fb_t *fb = esp_camera_fb_get();
+void photo_save(const char* fileName) {
+  camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println("Failed to get camera frame buffer");
     return;

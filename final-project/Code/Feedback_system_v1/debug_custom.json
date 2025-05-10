@@ -1,0 +1,10 @@
+[
+  {
+      "configId": "SiliconLabs:silabs:xiao_mg24:programmer=commander",
+      "servertype": "jlink",
+      "device": "EFR32MG24B220F1536IM48",
+      "interface": "swd",
+      "serverpath": "/Applications/SEGGER/JLink/JLinkGDBServer",
+      "showDevDebugOutput": "raw"
+  }
+]

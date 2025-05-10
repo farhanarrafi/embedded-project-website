@@ -46,7 +46,7 @@
 // Has a characteristic of: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E - used to send data with  "NOTIFY"
 
 
-  // SERVICE_UUID: abb8feff-68ce-4bf2-aef7-713ca4a82c4b
+// SERVICE_UUID: abb8feff-68ce-4bf2-aef7-713ca4a82c4b
 const uint8_t generic_access_service_uuid[] = {
   0x4b, 0x2c, 0xa8, 0xa4, 0x3c, 0x71, 0xf7, 0xae, 0xf2, 0x4b, 0xce, 0x68, 0xff, 0xfe, 0xb8, 0xab
 };
@@ -93,7 +93,9 @@ float aX, aY, aZ, gX, gY, gZ;
 const float accelerationThreshold = 2.5;  // threshold of significant in G's
 const int numSamples = 119;
 int samplesRead = numSamples;
-std::stringstream sensorDataString;
+
+unsigned long motorStart = 0;
+unsigned long vibrationInterval = 500;
 
 static void ble_initialize_gatt_db();
 static void ble_start_advertising();
@@ -123,13 +125,11 @@ void loop() {
   // Serial.print("Time: ");
   // Serial.println(timeString);
 
-  if (HAPTIC_VIBRATE_ON) {
-    //motorDriverLoop();
-  }
+
   digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
   delay(1000);                      // wait for a second
   digitalWrite(LED_BUILTIN, LOW);   // turn the LED off by making the voltage LOW
-  delay(1000); 
+  delay(1000);
   delay(100);
   bluetoothLoop();
 }
@@ -141,7 +141,7 @@ void timeSetup() {
 void bluetoothSetup() {
   // LED works as indicator for bluetooth
   pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW); 
+  digitalWrite(LED_BUILTIN, LOW);
 }
 // Motor Driver Setup
 /*!
@@ -160,32 +160,38 @@ void motorDriverSetup() {
 
   // @param lib Library to use, 0 = Empty, 1-5 are ERM, 6 is LRA.
   drv.selectLibrary(1);
-
-  // I2C trigger by sending 'go' command
-  // default, internal trigger when sending GO command
-  // 0: Internal trigger, call go() to start playback\n
-  // 1: External trigger, rising edge on IN pin starts playback\n
-  // 2: External trigger, playback follows the state of IN pin\n
-  // 3: PWM/analog input\n
-  // 4: Audio\n
-  // 5: Real-time playback\n
-  // 6: Diagnostics\n
-  // 7: Auto calibration
   drv.setMode(DRV2605_MODE_INTTRIG);
 }
 
 
 
-void motorDriverLoop() {
-  // set the effect to play
-  drv.setWaveform(0, effect);  // play effect
-  drv.setWaveform(1, 0);       // end waveform
+void motorDriverLoop(uint8array vibrationPattern) {
+  if (HAPTIC_VIBRATE_ON) {
+    uint8_t status = 0x01;
+    unsigned long currentMillis = millis();
+    if (currentMillis - motorStart >= vibrationInterval) {
+      motorStart = currentMillis;
+      // set the effect to play
+      drv.setWaveform(0, effect);  // play effect
+      drv.setWaveform(1, 0);       // end waveform
 
-  // play the effect!
-  drv.go();
+      // play the effect!
+      drv.go();
+    }
+    if (connection_handle != SL_BT_INVALID_CONNECTION_HANDLE) {  // Only send if connected
+
+      sl_status_t sc = sl_bt_gatt_server_send_notification(connection_handle,
+                                                           haptic_status_characteristic_handle,
+                                                           sizeof(status),
+                                                           ((uint8_t*)status));
+      if (sc != SL_STATUS_OK) {
+        Serial.print("Error sending Haptic Status Notification: 0x");
+        Serial.println(sc, HEX);
+      }
+    }
+  }
 
   // wait a bit
-  delay(100);
 }
 
 void bluetoothLoop() {
@@ -218,42 +224,34 @@ void imuSensorLoop() {
       break;
     }
   }
+  float imu_data[119][6] = {};
   // check if the all the required samples have been read since
   // the last time the significant motion was detected
   while (samplesRead < numSamples) {
     // check if both new acceleration and gyroscope data is
     // available
     // read the acceleration and gyroscope data
+    
+    imu_data[samplesRead][0] = myIMU.readFloatAccelX();
+    imu_data[samplesRead][1] = myIMU.readFloatAccelY();
+    imu_data[samplesRead][2] = myIMU.readFloatAccelZ();
+    imu_data[samplesRead][3] = myIMU.readFloatGyroX();
+    imu_data[samplesRead][4] = myIMU.readFloatGyroY();
+    imu_data[samplesRead][5] = myIMU.readFloatGyroZ();
     samplesRead++;
-    sensorDataString << myIMU.readFloatAccelX() << "," << myIMU.readFloatAccelY() << "," << myIMU.readFloatAccelZ() << ",";
-    sensorDataString << myIMU.readFloatGyroX() << "," << myIMU.readFloatGyroY() << "," << myIMU.readFloatGyroZ() << "\n";
   }
 
-  //const uint8_t* sensorData = reinterpret_cast<const uint8_t*>(sensorDataString.str().data());
-  //Serial.print("Sensor Data:");
-  //Serial.println(String(sensorDataString.str().c_str()));
-  // // Update the local GATT with the current IMU Data
-  // sl_bt_gatt_server_send_indication(connection_handle,
-  //                                   imu_data_characteristic_handle,
-  //                                   sizeof(sensorData),
-  //                                   sensorData);
-  std::string data_str = sensorDataString.str();  // Store in a named variable
-  //Serial.print("Sensor Data:");
-  Serial.println(data_str.c_str());
-
   if (connection_handle != SL_BT_INVALID_CONNECTION_HANDLE) {  // Only send if connected
-    sl_status_t sc = sl_bt_gatt_server_send_indication(connection_handle,
-                                                       imu_data_characteristic_handle,
-                                                       data_str.length(),                  // <-- CORRECTED: Use actual data length
-                                                       (const uint8_t *)data_str.data());  // data() is fine here as data_str is in scope
+    sl_status_t sc = sl_bt_gatt_server_write_attribute_value(imu_data_characteristic_handle,
+                                                       0,
+                                                       sizeof(imu_data),
+                                                       (uint8_t *)imu_data);
     if (sc != SL_STATUS_OK) {
       Serial.print("Error sending IMU indication: 0x");
       Serial.println(sc, HEX);
     }
   }
-  Serial.println(data_str.c_str());
-  // Clear contents
-  sensorDataString.str("");
+  //Serial.println(imu_data);
 }
 
 
@@ -331,10 +329,10 @@ void sl_bt_on_event(sl_bt_msg_t *evt) {
         if (evt->data.evt_gatt_server_attribute_value.value.len == 0) {
           break;
         } else {
-          motorDriverLoop();
-          motorDriverLoop();
+          uint8array vibrationPattern = evt->data.evt_gatt_server_attribute_value.value;
+          motorStart = millis();
+          motorDriverLoop(vibrationPattern);
         }
-        
       }
       break;
     case sl_bt_evt_gatt_server_characteristic_status_id:
@@ -352,12 +350,12 @@ void sl_bt_on_event(sl_bt_msg_t *evt) {
   }
 }
 
-/**************************************************************************//**
+/**************************************************************************/ /**
  * Starts BLE advertisement
  *****************************************************************************/
 static void ble_start_advertising() {
   Serial.println("Inside ble_start_advertising");
-  static uint8_t advertising_set_handle = 0xff; // Or a specific handle if you need multiple sets
+  static uint8_t advertising_set_handle = 0xff;  // Or a specific handle if you need multiple sets
   sl_status_t sc;
 
   // Create an advertising set if not already created.
@@ -368,10 +366,10 @@ static void ble_start_advertising() {
     // Set advertising interval to 100ms.
     sc = sl_bt_advertiser_set_timing(
       advertising_set_handle,
-      160, // 100ms min interval (160 * 0.625ms)
-      160, // 100ms max interval
-      0,   // duration: 0 for continuous advertising
-      0);  // max_events: 0 for no limit
+      160,  // 100ms min interval (160 * 0.625ms)
+      160,  // 100ms max interval
+      0,    // duration: 0 for continuous advertising
+      0);   // max_events: 0 for no limit
     app_assert_status(sc);
   }
 
@@ -381,26 +379,26 @@ static void ble_start_advertising() {
   uint8_t adv_data_len = 0;
 
   // Flags: LE General Discoverable Mode, BR/EDR Not Supported
-  adv_data[adv_data_len++] = 2; // Length of this field
-  adv_data[adv_data_len++] = 0x01; // Type: Flags
-  adv_data[adv_data_len++] = 0x06; // Data: LE General Discoverable, BR/EDR Not Supported
+  adv_data[adv_data_len++] = 2;     // Length of this field
+  adv_data[adv_data_len++] = 0x01;  // Type: Flags
+  adv_data[adv_data_len++] = 0x06;  // Data: LE General Discoverable, BR/EDR Not Supported
 
   // Complete List of 128-bit Service Class UUIDs
-  adv_data[adv_data_len++] = 17; // Length: 1 (type) + 16 (UUID)
-  adv_data[adv_data_len++] = 0x07; // Type: Complete List of 128-bit Service UUIDs
+  adv_data[adv_data_len++] = 17;    // Length: 1 (type) + 16 (UUID)
+  adv_data[adv_data_len++] = 0x07;  // Type: Complete List of 128-bit Service UUIDs
   memcpy(&adv_data[adv_data_len], generic_access_service_uuid, 16);
   adv_data_len += 16;
 
   // Complete Local Name (if space permits, otherwise use short name or put in scan response)
-  uint8_t name_len = sizeof(advertised_name) -1;
+  uint8_t name_len = sizeof(advertised_name) - 1;
   if (adv_data_len + 2 + name_len <= 31) {
-      adv_data[adv_data_len++] = name_len + 1; // Length
-      adv_data[adv_data_len++] = 0x09; // Type: Complete Local Name
-      memcpy(&adv_data[adv_data_len], advertised_name, name_len);
-      adv_data_len += name_len;
+    adv_data[adv_data_len++] = name_len + 1;  // Length
+    adv_data[adv_data_len++] = 0x09;          // Type: Complete Local Name
+    memcpy(&adv_data[adv_data_len], advertised_name, name_len);
+    adv_data_len += name_len;
   } else {
-      Serial.println("Advertised name too long for main packet, consider scan response.");
-      // Or use a shortened name
+    Serial.println("Advertised name too long for main packet, consider scan response.");
+    // Or use a shortened name
   }
 
 
@@ -502,7 +500,7 @@ static void ble_initialize_gatt_db() {
   const uint8_t haptic_status_service_uuid[] = { 0x02, 0x19 };
   sc = sl_bt_gattdb_add_service(gattdb_session_id,
                                 sl_bt_gattdb_primary_service,
-                                SL_BT_GATTDB_ADVERTISED_SERVICE,  
+                                SL_BT_GATTDB_ADVERTISED_SERVICE,
                                 sizeof(haptic_status_service_uuid),
                                 haptic_status_service_uuid,
                                 &haptic_status_service_handle);  // Use a new handle for this service
@@ -515,7 +513,7 @@ static void ble_initialize_gatt_db() {
   };
   sc = sl_bt_gattdb_add_uuid128_characteristic(gattdb_session_id,
                                                haptic_status_service_handle,
-                                               SL_BT_GATTDB_CHARACTERISTIC_WRITE,  
+                                               SL_BT_GATTDB_CHARACTERISTIC_WRITE,
                                                0x00,
                                                0x00,
                                                haptic_feedback_characteristic_uuid,

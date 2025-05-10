@@ -38,24 +38,24 @@
 // | (e.g. ESP32S3)|                                | (e.g. MG24)|
 // +---------------+                                +---------------+
 //         |                                                  |
-//         |--- Scan for Advertisements --------------------->|         ***> Implement this here 
+//         |--- Scan for Advertisements --------------------->|         ***> Implement this here
 //         |                                                  |
-//         |<--- Advertise Service UUID, Name ----------------| 
+//         |<--- Advertise Service UUID, Name ----------------|
 //         |                                                  |
-//         |--- Connect Request ----------------------------->|         ***> Implement this here 
+//         |--- Connect Request ----------------------------->|         ***> Implement this here
 //         |                                                  |
-//         |<-- Connection Established (unencrypted) ---------|      
+//         |<-- Connection Established (unencrypted) ---------|
 //         |                                                  | ________________
 //         |--- Initiate Pairing ---------------------------->| ***> Implement  \
 //         |                                                  |       here*      \
-//         |<-- Pairing Request / Confirm / Encrypt ----------|                   \    *Not needed for BLE Two-Way 
+//         |<-- Pairing Request / Confirm / Encrypt ----------|                   \    *Not needed for BLE Two-Way
 //         |                                                  |                   /   Communication — Without Pairing*
 //         | (Optional: Bonding to save keys)                 |                  /
 //         |                                                  | ________________/
-//         |--- Discover Services --------------------------->|         ***> Implement this here 
-//         |--- Discover Characteristics -------------------->|         ***> Implement this here 
+//         |--- Discover Services --------------------------->|         ***> Implement this here
+//         |--- Discover Characteristics -------------------->|         ***> Implement this here
 //         |                                                  |
-//         |--- Write to Characteristic (TX) ---------------->|         ***> Implement this here 
+//         |--- Write to Characteristic (TX) ---------------->|         ***> Implement this here
 //         |                                                  |
 //         |<-- Notify Characteristic Value (RX) -------------|
 //         |                                                  |
@@ -65,31 +65,62 @@
 // BLuetooth Definitions
 
 // Bluetooth Device Name
-const char* BLUETOOTH_DEVICE_NAME = "Obstacle-Detector";
-BLEScan* pBLEScan;
+const char *BLUETOOTH_DEVICE_NAME = "Obstacle-Detector";
+BLEScan *pBLEScan;
 
 // Service UUID
-#define SERVICE_UUID  "abb8feff-68ce-4bf2-aef7-713ca4a82c4b"
+static BLEUUID GENERAL_SERVICE_UUID("abb8feff-68ce-4bf2-aef7-713ca4a82c4b");
+// Device Name UUID
+static BLEUUID DEVICE_NAME_CHARACTERISTIC_UUID("6f2173d8-7cd3-4511-b3fa-e77f4afc3404");
+// IMU Service UUID
+static BLEUUID IMU_DATA_SERVICE_UUID("64d0457d-7976-421e-acb5-ed881a36418d");
 // IMU Data request UUID
-#define IMU_DATA_UUID "6137df56-b267-46bb-b86c-f4614a9f67a6"
+static BLEUUID IMU_DATA_CHARACTERISTIC_UUID("6137df56-b267-46bb-b86c-f4614a9f67a6");
+// Haptic Service UUID
+static BLEUUID HAPTIC_SERVICE_UUID("d48330a4-ad02-40fb-9e1c-d2cc5ebff234");
 // Haptic Status
-#define HAPTIC_STATUS_UUID "3506f523-e28b-4d9c-a4a3-648e1a943ee0"
+static BLEUUID HAPTIC_STATUS_CHARACTERISTIC_UUID("3506f523-e28b-4d9c-a4a3-648e1a943ee0");
 // Haptic feedback data sent to MG24s
-#define HAPTIC_FEEDBACK_UUID "ff422d26-d740-47a7-a364-2a7aed5ab23d"
+static BLEUUID HAPTIC_FEEDBACK_CHARACTERISTIC_UUID("ff422d26-d740-47a7-a364-2a7aed5ab23d");
 
-// BLEServer *bleServer = NULL;
-// BLEService *bleService = NULL;
-// BLECharacteristic *bleCharacteristic = NULL;
-// BLE2901 *descriptor_2901 = NULL;
+static BLEUUID CCCD_UUID((uint16_t)0x2902);
+
+#define A_1 "64d0457d-7976-421e-acb5-ed881a36418d"
+#define A_2 "4fce1ae4-217a-469d-83d2-92c87d45f7c9"
+#define A_3 "ab63ab1f-a7c1-4740-95d3-0a47150e4289"
+
+
+
 
 
 static boolean readyToConnect = false;
 static boolean connected = false;
 static boolean doScan = false;
+static BLERemoteCharacteristic *pDeviceNameCharacteristic;
 static BLERemoteCharacteristic *pIMUdataCharacteristic;
 static BLERemoteCharacteristic *pHapticFeedbackCharacteristic;
 static BLERemoteCharacteristic *pHapticStatusCharacteristic;
+
+
 static BLEAdvertisedDevice *myDevice;
+
+// static BLEAdvertisedDevice *sLeftHand;
+// static BLEAdvertisedDevice *sRightHand;
+// static BLEAdvertisedDevice *sLeftLeg;
+// static BLEAdvertisedDevice *sRightLeg;
+
+
+/**
+  Client Array for holding all four clients
+  Use the following line for holding multiple clients in a vector
+  clients.push_back(BLEDevice::createClient());
+*/
+std::vector<BLEClient*> clients;
+
+BLEClient *pClientLeftHand;
+BLEClient *pClientRightHand;
+BLEClient *pClientLeftLeg;
+BLEClient *pClientRightLeg;
 
 int scanTime = 5;  //In seconds
 
@@ -99,15 +130,15 @@ VL53L8CX tof_sensor(&DEV_I2C, LPN_PIN);
 bool EnableAmbient = true;
 bool EnableSignal = true;
 uint8_t res = VL53L8CX_RESOLUTION_4X4;
-std::stringstream sensorDataString;
+std::stringstream toF8x8SensorDataStringSteam;
 uint8_t status;
 
 // Wi-Fi Config
-const char* ssid = "Mehmaan";
-const char* password = "AshenB0ish@Jan";
+const char *ssid = "Mehmaan";
+const char *password = "AshenB0ish@Jan";
 
 // NTP settings
-const char* ntpServer = "pool.ntp.org";
+const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -6 * 3600;  // GMT offset in seconds (e.g., 0 for UTC)
 const long daylightOffset_sec = 3600;  // DST offset in seconds (3600 for +1hr)
 
@@ -128,10 +159,10 @@ bool sd_sign = false;
 String timeString = "";
 const int DATA_CAPTURES_PER_IMAGE = 5;
 
+// Last read IMU sensor data to check with current read IMU data
+std::string lastReadimuData = "";
 
-
-// IMU sensor data
-String imuSensorData = "";
+bool writeToF8x8SensorDataSuccess = false;
 
 
 // Setup
@@ -143,11 +174,11 @@ void setup() {
   delay(5000);  // ADD THIS DELAY EARLY — before initializing peripherals
 
   // Initialize SD card
-  if(!SD.begin(21)){
+  if (!SD.begin(21)) {
     Serial.println("Card Mount Failed");
     return;
   }
-  if(SD.cardType() == CARD_NONE){
+  if (SD.cardType() == CARD_NONE) {
     Serial.println("No SD card attached");
     return;
   }
@@ -171,10 +202,10 @@ void loop() {
   for (i = 0; i < DATA_CAPTURES_PER_IMAGE; i++) {
     sensorLoop();
   }
-  writeSensorDataInFile();
+  writeToF8x8SensorDataInFile();
 
   // Clear contents
-  sensorDataString.str("");
+  toF8x8SensorDataStringSteam.str("");
 
   delay(1000);
 }
@@ -235,7 +266,7 @@ void sensorLoop() {
 }
 
 // VL53L8CX Data Save on SD
-void saveSensorData(VL53L8CX_ResultsData* Result) {
+void saveSensorData(VL53L8CX_ResultsData *Result) {
   int8_t i, j, k, l;
   uint8_t zones_per_line;
   uint8_t number_of_zones = res;
@@ -246,7 +277,7 @@ void saveSensorData(VL53L8CX_ResultsData* Result) {
   //snprintf(report, sizeof(report), "%s,",timeString);
   //offset += snprintf(report + offset, sizeof(report) - offset,  "%s,",timeString);
   //Serial.println(timeString);
-  sensorDataString << timeString.c_str() << ",";
+  toF8x8SensorDataStringSteam << timeString.c_str() << ",";
   //SerialPort.print(timeString);
   for (j = 0; j < number_of_zones; j += zones_per_line) {
     for (l = 0; l < VL53L8CX_NB_TARGET_PER_ZONE; l++) {
@@ -259,45 +290,58 @@ void saveSensorData(VL53L8CX_ResultsData* Result) {
           long ambient = (long)Result->ambient_per_spad[zoneIndex];
           long distance = (long)Result->distance_mm[dataIndex];
           long status = (long)Result->target_status[dataIndex];
-          sensorDataString << distance << "," << status << "," << signal << "," << ambient << ",";
+          toF8x8SensorDataStringSteam << distance << "," << status << "," << signal << "," << ambient << ",";
         } else {
-          sensorDataString << "X"
-                           << ","
-                           << "X"
-                           << ","
-                           << "X"
-                           << ","
-                           << "X"
-                           << ",";
+          toF8x8SensorDataStringSteam << "X"
+                                 << ","
+                                 << "X"
+                                 << ","
+                                 << "X"
+                                 << ","
+                                 << "X"
+                                 << ",";
         }
       }
     }
   }
-  sensorDataString << "\n";
+  toF8x8SensorDataStringSteam << "\n";
   // Convert the stream buffer into a string
-  std::string str = sensorDataString.str();
+  std::string str = toF8x8SensorDataStringSteam.str();
   //SerialPort.print(str.c_str());
   //SerialPort.print("\n");
 }
 
-void writeSensorDataInFile() {
-  String str = String(sensorDataString.str().c_str());
-  Serial.println("writeSensorDataInFile");
-  Serial.println(str);
-  File file = SD.open("/datafile.txt", FILE_APPEND);
-  if (!file) {
-    Serial.println("Failed to open datafile file for writing sensor data!");
-    return;
+
+
+void writeIMUSensorDataInFile() {
+  if (writeToF8x8SensorDataSuccess) {
+    writeSensorDataInFile(lastReadimuData, "/imuSensorDatafile.txt");
   }
-  if (file.print(str)) {
-    Serial.println("Sensor data written in file!");
-  } else {
-    Serial.println("Sensor data write failed!");
-  }
-  file.close();
 }
 
-const char* wl_status_to_string(wl_status_t status) {
+void writeToF8x8SensorDataInFile() {
+  writeSensorDataInFile(toF8x8SensorDataStringSteam.str(), "/tofSensorDatafile.txt");
+}
+
+void writeSensorDataInFile(std::string sensorData, String filename) {
+  Serial.println("sensorData");
+  File tofSensorfile = SD.open(filename, FILE_APPEND);
+  if (!tofSensorfile) {
+    Serial.println("Failed to open ToF sensor datafile file for writing sensor data!");
+    writeToF8x8SensorDataSuccess = false;
+    return;
+  }
+  if (tofSensorfile.print(String(sensorData.c_str()))) {
+    Serial.println("Sensor data written in file!");
+  } else {
+    writeToF8x8SensorDataSuccess = false;
+    Serial.println("Sensor data write failed!");
+  }
+  tofSensorfile.close();
+  writeToF8x8SensorDataSuccess = true;
+}
+
+const char *wl_status_to_string(wl_status_t status) {
   switch (status) {
     case WL_NO_SHIELD: return "WL_NO_SHIELD";
     case WL_IDLE_STATUS: return "WL_IDLE_STATUS";
@@ -324,7 +368,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     Serial.println(advertisedDevice.toString().c_str());
 
     // We have found a device, let us now see if it contains the service we are looking for.
-    if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(SERVICE_UUID)) {
+    if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(GENERAL_SERVICE_UUID)) {
 
       BLEDevice::getScan()->stop();
       myDevice = new BLEAdvertisedDevice(advertisedDevice);
@@ -332,8 +376,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
       doScan = true;
 
     }  // Found our server
-  }  // onResult
-}; 
+  }    // onResult
+};
 
 // Run in setup
 void runBluetoothScan() {
@@ -344,34 +388,24 @@ void runBluetoothScan() {
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
   // scan to run for 5 seconds.
-  pBLEScan = BLEDevice::getScan(); //create new scan
+  pBLEScan = BLEDevice::getScan();  //create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setInterval(100);
-  pBLEScan->setWindow(449); // less or equal setInterval value
+  pBLEScan->setWindow(449);       // less or equal setInterval value
   pBLEScan->setActiveScan(true);  //active scan uses more power, but get results faster
   pBLEScan->start(5, false);
 }
 
-// IMU data recevied here from MG24 Sense
-static void imuDataNotifyCallback(BLERemoteCharacteristic *pIMUdataCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
-  Serial.print("IMU Data receipt Notify Callback ");
-  Serial.print(pIMUdataCharacteristic->getUUID().toString().c_str());
-  Serial.print(" of data length ");
-  Serial.println(length);
-  Serial.print("data: ");
-  Serial.write(pData, length);
-  Serial.println();
+// IMU data Chang notification
+static void imuDataChangeNotifyCallback(BLERemoteCharacteristic *pIMUdataCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
+  Serial.print("IMU Data Change Notification Callback ");
+  readIMUdataFromCharacteristic();
 }
 
 // We can get the haptic execution status update here
 static void hapticExecutionStatusNotifyCallback(BLERemoteCharacteristic *pHapticStatusCharacteristic, uint8_t *pData, size_t length, bool isNotify) {
-  Serial.print("Haptic Execution Status Callback ");
-  Serial.print(pHapticStatusCharacteristic->getUUID().toString().c_str());
-  Serial.print(" of data length ");
-  Serial.println(length);
-  Serial.print("data: ");
-  Serial.write(pData, length);
-  Serial.println();
+  Serial.print("Haptic Execution Status: ");
+  Serial.println(pHapticStatusCharacteristic->getUUID().toString().c_str());
 }
 
 
@@ -400,70 +434,123 @@ bool connectToServer() {
   Serial.println(" - Connected to server");
   pClient->setMTU(247);  //set client to request maximum MTU from server (default is 23 otherwise)
 
-  // Obtain a reference to the service we are after in the remote BLE server.
-  BLERemoteService *pRemoteService = pClient->getService(BLEUUID(SERVICE_UUID));
+  // Obtain a reference to the General service we are after in the remote BLE server.
+  BLERemoteService *pRemoteService = pClient->getService(GENERAL_SERVICE_UUID);
   if (pRemoteService == nullptr) {
     Serial.print("Failed to find our service UUID: ");
-    Serial.println(SERVICE_UUID);
+    Serial.println(GENERAL_SERVICE_UUID.toString());
     pClient->disconnect();
     return false;
+  } else {
+    Serial.println("GENERAL_SERVICE_UUID - Found our service");
   }
-  Serial.println(" - Found our service");
+
+  pDeviceNameCharacteristic = pRemoteService->getCharacteristic(DEVICE_NAME_CHARACTERISTIC_UUID);
+  if (pHapticFeedbackCharacteristic == nullptr) {
+    Serial.println("Failed to find our characteristic UUID: DEVICE_NAME_CHARACTERISTIC_UUID");
+    pClient->disconnect();
+    return false;
+  } else {
+    Serial.println("DEVICE_NAME_CHARACTERISTIC_UUID - Found");
+  }
+
+  // Obtain a reference to the IMU DATA Service we are after in the remote BLE server.
+  BLERemoteService *pIMUDataService = pClient->getService(IMU_DATA_SERVICE_UUID);
+  if (pIMUDataService == nullptr) {
+    Serial.print("Failed to find our service UUID: ");
+    Serial.println(IMU_DATA_SERVICE_UUID.toString());
+    pClient->disconnect();
+    return false;
+  } else {
+    Serial.println("IMU_DATA_SERVICE_UUID - Found our service");
+  }
 
   // Obtain a reference to the characteristic in the IMU Data service of the remote BLE server.
-  pIMUdataCharacteristic = pRemoteService->getCharacteristic(IMU_DATA_UUID);
+  pIMUdataCharacteristic = pIMUDataService->getCharacteristic(IMU_DATA_CHARACTERISTIC_UUID);
   if (pIMUdataCharacteristic == nullptr) {
-    Serial.println("Failed to find our characteristic UUID: IMU_DATA_UUID");
+    Serial.println("Failed to find our characteristic UUID: IMU_DATA_CHARACTERISTIC_UUID");
     pClient->disconnect();
     return false;
   }
-  Serial.println("IMU_DATA - Found our characteristic");
+  Serial.println("IMU_DATA_CHARACTERISTIC_UUID - Found");
+
+  // Enable notification of IMU Data Change so that we can read IMU data
+  if (pIMUdataCharacteristic->canNotify()) {
+      pIMUdataCharacteristic->registerForNotify(imuDataChangeNotifyCallback);
+      // Write 0x02 0x00 to CCCD to enable indication
+      uint8_t notificationOn[] = {0x02, 0x00};
+      pIMUdataCharacteristic->getDescriptor(CCCD_UUID)->writeValue(notificationOn, 2, true);
+      Serial.println("Notification enabled for IMU Data Change");
+    }
+
+  // Obtain a reference to the Haptic Data and Feedback Service we are after in the remote BLE server.
+  BLERemoteService *pHapticDataFeedbackService = pClient->getService(HAPTIC_SERVICE_UUID);
+  if (pIMUDataService == nullptr) {
+    Serial.print("Failed to find our service UUID: ");
+    Serial.println(HAPTIC_SERVICE_UUID.toString());
+    pClient->disconnect();
+    return false;
+  } else {
+    Serial.println("HAPTIC_SERVICE_UUID - Found our service");
+  }
+
 
   // Obtain a reference to the characteristic in the Haptic Feedback service of the remote BLE server.
-  pHapticFeedbackCharacteristic = pRemoteService->getCharacteristic(HAPTIC_FEEDBACK_UUID);
+  pHapticFeedbackCharacteristic = pRemoteService->getCharacteristic(HAPTIC_FEEDBACK_CHARACTERISTIC_UUID);
   if (pHapticFeedbackCharacteristic == nullptr) {
-    Serial.println("Failed to find our characteristic UUID: HAPTIC_FEEDBACK_UUID");
+    Serial.println("Failed to find our characteristic UUID: HAPTIC_FEEDBACK_CHARACTERISTIC_UUID");
     pClient->disconnect();
     return false;
   }
-  Serial.println("HAPTIC_FEEDBACK - Found our characteristic");
+  Serial.println("HAPTIC_FEEDBACK_CHARACTERISTIC_UUID - Found");
 
 
   // Obtain a reference to the characteristic in the Haptic Status service of the remote BLE server.
-  pHapticStatusCharacteristic = pRemoteService->getCharacteristic(HAPTIC_STATUS_UUID);
+  pHapticStatusCharacteristic = pRemoteService->getCharacteristic(HAPTIC_STATUS_CHARACTERISTIC_UUID);
   if (pHapticStatusCharacteristic == nullptr) {
-    Serial.println("Failed to find our characteristic UUID: HAPTIC_STATUS_UUID");
+    Serial.println("Failed to find our characteristic UUID: HAPTIC_STATUS_CHARACTERISTIC_UUID");
     pClient->disconnect();
     return false;
   }
-  Serial.println("HAPTIC_STATUS - Found our characteristic");
+  Serial.println("HAPTIC_STATUS_CHARACTERISTIC_UUID - Found");
 
+  connected = true;
+  return true;
+}
 
+void readIMUdataFromCharacteristic() {
   // Read the IMU Sensor Data value of the characteristic.
   if (pIMUdataCharacteristic->canRead()) {
-    std::string imuRaw = pIMUdataCharacteristic->readValue();
-    imuSensorData = String(imuRaw.c_str());
-    Serial.print("IMU Sensor Data from MG24 Sense: " + imuSensorData);
+    std::string imuData = std::string(pIMUdataCharacteristic->readValue().c_str());
+    if (imuData != lastReadimuData) {
+      lastReadimuData = imuData;
+      size_t numFloats = imuData.length() / sizeof(float);  // should be 714
+      float *imu_floats = (float *)imuData.data();             // reinterpret bytes
+      for (int i = 0; i < numFloats / 6; i++) {
+        float ax = imu_floats[i * 6 + 0];
+        float ay = imu_floats[i * 6 + 1];
+        float az = imu_floats[i * 6 + 2];
+        float gx = imu_floats[i * 6 + 3];
+        float gy = imu_floats[i * 6 + 4];
+        float gz = imu_floats[i * 6 + 5];
+        Serial.printf("IMU Sensor Data from MG24 Sense %d:\n  Accel:  X=%.2f  Y=%.2f  Z=%.2f\n  Gyro:   X=%.2f  Y=%.2f  Z=%.2f\n", i+1, ax, ay, az, gx, gy, gz);
+      }
+    }
   }
+}
 
+void sendHapticMotorPattern(uint8_t vibrationPattern) {
   // Write the Haptic Motor value of the characteristic.
-  int motorValues[] = {25, 50, 75, 100};
   if (pHapticFeedbackCharacteristic->canWrite()) {
-    pHapticFeedbackCharacteristic->writeValue((uint8_t*)motorValues, sizeof(motorValues), true);
+    pHapticFeedbackCharacteristic->writeValue((uint8_t *)vibrationPattern, sizeof(vibrationPattern), true);
   }
+}
 
+void getHapticExecutionStatusNotification() {
   // Set notification for Hatpic Motor execution Notification
   if (pHapticStatusCharacteristic->canNotify()) {
     pHapticStatusCharacteristic->registerForNotify(hapticExecutionStatusNotifyCallback);
   }
-
-  // Register for IMU data notification (push) from MG24 Sense
-  if (pIMUdataCharacteristic->canIndicate() || pIMUdataCharacteristic->canNotify()) {
-    pIMUdataCharacteristic->registerForNotify(imuDataNotifyCallback);
-  }
-
-  connected = true;
-  return true;
 }
 
 
@@ -489,11 +576,10 @@ void attemptBLEConnection() {
     Serial.println("Setting new characteristic value to \"" + newValue + "\"");
 
     // Set the characteristic's value to be the array of bytes that is actually a string.
-    imuSensorData= pIMUdataCharacteristic->readValue();
+    lastReadimuData = std::string(pIMUdataCharacteristic->readValue().c_str());
   } else if (doScan) {
     BLEDevice::getScan()->start(0);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
   }
 
   delay(1000);  // Delay a second between loops.
 }  // End of loop
-
